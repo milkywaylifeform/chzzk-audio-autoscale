@@ -15,6 +15,7 @@ interface GraphNodes {
   source: MediaStreamAudioSourceNode
   dsp: DspChain
   agc: AgcController
+  startedAt: number
 }
 
 let audioContext: AudioContext | null = null
@@ -66,7 +67,7 @@ async function startCapture(tabId: number, streamId: string): Promise<void> {
   source.connect(dsp.input)
   dsp.output.connect(ctx.destination)
 
-  graphs.set(tabId, { stream, source, dsp, agc })
+  graphs.set(tabId, { stream, source, dsp, agc, startedAt: Date.now() })
   console.log(
     `[sound-autoscale] tab ${tabId} 캡처 시작 (active=${graphs.size}, AGC active)`,
   )
@@ -110,7 +111,11 @@ chrome.runtime.onMessage.addListener(
       return false
     }
     if (msg.type === 'GET_ACTIVE_TABS') {
-      sendResponse({ activeTabIds: Array.from(graphs.keys()) })
+      const activeTabs = Array.from(graphs.entries()).map(([tabId, g]) => ({
+        tabId,
+        startedAt: g.startedAt,
+      }))
+      sendResponse({ activeTabs })
       return false
     }
     return false

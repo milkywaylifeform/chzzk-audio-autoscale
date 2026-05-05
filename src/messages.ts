@@ -5,4 +5,10 @@ export type CaptureMessage =
 
 export type SimpleResponse = { ok: true } | { ok: false; error: string }
 
-export type ActiveTabsResponse = { activeTabIds: number[] }
+export interface ActiveTab {
+  tabId: number
+  /** Date.now() 시점. LRU 평가용. */
+  startedAt: number
+}
+
+export type ActiveTabsResponse = { activeTabs: ActiveTab[] }
