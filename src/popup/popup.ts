@@ -10,6 +10,10 @@ import type {
 
 const POLL_INTERVAL_MS = 200
 
+// LUFS 바 표시 범위
+const LUFS_BAR_MIN = -60
+const LUFS_BAR_MAX = 0
+
 type SliderKey = keyof AgcParams
 
 const SLIDER_KEYS: SliderKey[] = [
@@ -45,6 +49,40 @@ function applyParamsToUi(p: AgcParams): void {
     const valEl = $(`${key}-val`)
     slider.value = String(p[key])
     valEl.textContent = formatValue(key, p[key])
+  }
+  updateBars(lastState, p)
+}
+
+function pct(val: number, min: number, max: number): number {
+  if (!isFinite(val)) return 0
+  return Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100))
+}
+
+let lastState: { lufs: number; gainDb: number } | null = null
+
+function updateBars(
+  state: { lufs: number; gainDb: number } | null,
+  params: AgcParams,
+): void {
+  // LUFS 바: 목표·게이트 마커는 항상 갱신
+  $('bar-target').style.left = `${pct(params.targetLufs, LUFS_BAR_MIN, LUFS_BAR_MAX)}%`
+  $('bar-gate').style.left = `${pct(params.silenceDbfs, LUFS_BAR_MIN, LUFS_BAR_MAX)}%`
+
+  // 게인 바 축 라벨: maxGainDb에 따라 갱신
+  $('gain-axis-min').textContent = `-${params.maxGainDb}`
+  $('gain-axis-max').textContent = `+${params.maxGainDb} dB`
+
+  const lufsIndicator = $('bar-lufs')
+  const gainIndicator = $('bar-gain')
+
+  if (state) {
+    lufsIndicator.style.left = `${pct(state.lufs, LUFS_BAR_MIN, LUFS_BAR_MAX)}%`
+    lufsIndicator.style.opacity = '1'
+    gainIndicator.style.left = `${pct(state.gainDb, -params.maxGainDb, params.maxGainDb)}%`
+    gainIndicator.style.opacity = '1'
+  } else {
+    lufsIndicator.style.opacity = '0.15'
+    gainIndicator.style.opacity = '0.15'
   }
 }
 
@@ -100,12 +138,13 @@ function setupSliders(): void {
       const val = parseFloat(slider.value)
       valEl.textContent = formatValue(key, val)
       currentParams = { ...currentParams, [key]: val }
-      // 활성 그래프에 즉시 반영 + storage에 영속화
+      // 활성 그래프에 즉시 반영 + storage에 영속화 + 시각 마커 갱신
       void sendCapture<SimpleResponse>({
         type: 'SET_PARAMS',
         params: { [key]: val } as Partial<AgcParams>,
       })
       void saveParams(currentParams)
+      updateBars(lastState, currentParams)
     })
   }
 }
@@ -133,6 +172,8 @@ function setMeterEmpty(): void {
   const status = $('meter-status')
   status.textContent = 'OFF'
   status.className = 'm-val'
+  lastState = null
+  updateBars(null, currentParams)
 }
 
 async function pollMeasurement(): Promise<void> {
@@ -160,6 +201,8 @@ async function pollMeasurement(): Promise<void> {
     status.textContent = 'TRACKING'
     status.className = 'm-val tracking'
   }
+  lastState = { lufs: res.lufs, gainDb: res.gainDb }
+  updateBars(lastState, currentParams)
 }
 
 let pollHandle: number | null = null

@@ -24,14 +24,34 @@
         <span class="m-label">LUFS</span>
         <span id="meter-lufs" class="m-val">—</span>
       </div>
+      <div class="bar lufs-bar">
+        <div class="bar-track"></div>
+        <div id="bar-gate" class="bar-marker gate" title="Silence Gate"></div>
+        <div id="bar-target" class="bar-marker target" title="목표 LUFS"></div>
+        <div id="bar-lufs" class="bar-indicator"></div>
+      </div>
+      <div class="bar-axis">
+        <span>-60</span><span>-30</span><span>0 LUFS</span>
+      </div>
+
       <div class="meter-row">
         <span class="m-label">dBFS</span>
         <span id="meter-dbfs" class="m-val">—</span>
       </div>
+
       <div class="meter-row">
         <span class="m-label">적용 게인</span>
         <span id="meter-gain" class="m-val">—</span>
       </div>
+      <div class="bar gain-bar">
+        <div class="bar-track"></div>
+        <div class="bar-marker zero" title="0 dB"></div>
+        <div id="bar-gain" class="bar-indicator gain"></div>
+      </div>
+      <div class="bar-axis">
+        <span id="gain-axis-min">-18</span><span>0</span><span id="gain-axis-max">+18 dB</span>
+      </div>
+
       <div class="meter-row">
         <span class="m-label">상태</span>
         <span id="meter-status" class="m-val">—</span>

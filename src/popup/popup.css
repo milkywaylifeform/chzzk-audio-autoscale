@@ -148,6 +148,74 @@ hr {
   color: var(--accent);
 }
 
+.bar {
+  position: relative;
+  height: 6px;
+  margin: 4px 0 2px;
+  border-radius: 3px;
+}
+
+.bar-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.bar-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.bar-marker.target {
+  background: var(--accent);
+}
+
+.bar-marker.gate {
+  background: var(--warning);
+  width: 1px;
+  opacity: 0.7;
+}
+
+.bar-marker.zero {
+  background: var(--fg-muted);
+  width: 1px;
+  left: 50%;
+  opacity: 0.5;
+}
+
+.bar-indicator {
+  position: absolute;
+  top: -3px;
+  width: 6px;
+  height: 12px;
+  background: var(--fg);
+  border-radius: 1px;
+  transform: translateX(-50%);
+  transition:
+    left 220ms ease-out,
+    opacity 200ms;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+.bar-indicator.gain {
+  background: var(--accent);
+}
+
+.bar-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 6px;
+  padding: 0 1px;
+}
+
 .slider-row {
   display: grid;
   grid-template-columns: 80px 1fr 56px;
