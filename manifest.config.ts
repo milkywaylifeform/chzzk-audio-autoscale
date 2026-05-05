@@ -18,7 +18,7 @@ export default defineManifest({
   },
   web_accessible_resources: [
     {
-      resources: ['src/offscreen/offscreen.html'],
+      resources: ['src/offscreen/offscreen.html', 'loudness-processor.js'],
       matches: ['<all_urls>'],
     },
   ],

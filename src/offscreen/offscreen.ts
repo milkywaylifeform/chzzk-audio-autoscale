@@ -4,21 +4,37 @@ import type {
   SimpleResponse,
 } from '../messages'
 import { createDspChain, disconnectDspChain, type DspChain } from '../dsp'
+import {
+  createAgcController,
+  disposeAgcController,
+  type AgcController,
+} from '../agc'
 
 interface GraphNodes {
   stream: MediaStream
   source: MediaStreamAudioSourceNode
   dsp: DspChain
+  agc: AgcController
 }
 
 let audioContext: AudioContext | null = null
+let workletReady: Promise<void> | null = null
 const graphs = new Map<number, GraphNodes>()
+
+const WORKLET_URL = chrome.runtime.getURL('loudness-processor.js')
 
 function getAudioContext(): AudioContext {
   if (!audioContext) {
     audioContext = new AudioContext()
   }
   return audioContext
+}
+
+async function ensureWorkletLoaded(ctx: AudioContext): Promise<void> {
+  if (!workletReady) {
+    workletReady = ctx.audioWorklet.addModule(WORKLET_URL)
+  }
+  await workletReady
 }
 
 async function startCapture(tabId: number, streamId: string): Promise<void> {
@@ -41,22 +57,26 @@ async function startCapture(tabId: number, streamId: string): Promise<void> {
   if (ctx.state === 'suspended') {
     await ctx.resume()
   }
+  await ensureWorkletLoaded(ctx)
 
   const source = ctx.createMediaStreamSource(stream)
   const dsp = createDspChain(ctx)
+  const agc = createAgcController(ctx, dsp.sidechainTap, dsp.gain)
 
-  // tabCapture가 원본 탭 오디오를 음소거시키므로 이 재생이 없으면 무음이 된다.
   source.connect(dsp.input)
   dsp.output.connect(ctx.destination)
 
-  graphs.set(tabId, { stream, source, dsp })
-  console.log(`[sound-autoscale] tab ${tabId} 캡처 시작 (active=${graphs.size})`)
+  graphs.set(tabId, { stream, source, dsp, agc })
+  console.log(
+    `[sound-autoscale] tab ${tabId} 캡처 시작 (active=${graphs.size}, AGC active)`,
+  )
 }
 
 function stopCapture(tabId: number): void {
   const graph = graphs.get(tabId)
   if (!graph) return
   graph.source.disconnect()
+  disposeAgcController(graph.agc)
   disconnectDspChain(graph.dsp)
   graph.stream.getTracks().forEach((t) => t.stop())
   graphs.delete(tabId)
@@ -65,6 +85,7 @@ function stopCapture(tabId: number): void {
   if (graphs.size === 0 && audioContext) {
     void audioContext.close()
     audioContext = null
+    workletReady = null
   }
 }
 

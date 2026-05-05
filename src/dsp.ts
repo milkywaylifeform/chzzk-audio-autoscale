@@ -1,9 +1,9 @@
-// DSP 체인 정의 — Phase 2a
+// DSP 체인 정의 — Phase 2b
 //
-// Source → Limiter (peak) → Gain (makeup) → Glue (master) → destination
+// 메인 경로:    Source → Limiter → Gain (AGC 제어) → Glue → destination
+// 사이드체인:                     ↘ K-weight HS → K-weight HP → AudioWorklet
 //
-// 파라미터는 ROADMAP.md 6.2 표를 따른다. Phase 2b에서 AudioWorklet 기반
-// Momentary Loudness 측정이 추가되면 GainNode가 AGC 제어 대상이 된다.
+// K-weighting 필터 계수는 ITU-R BS.1770 사양을 따른다.
 
 export const dbToLinear = (db: number): number => 10 ** (db / 20)
 
@@ -13,18 +13,13 @@ export interface DspChain {
   limiter: DynamicsCompressorNode
   gain: GainNode
   glue: DynamicsCompressorNode
+  kweightHS: BiquadFilterNode
+  kweightHP: BiquadFilterNode
+  /** K-weighted 사이드체인의 종단 노드. AudioWorklet 입력으로 연결한다. */
+  sidechainTap: AudioNode
 }
 
-export interface DspParams {
-  makeupGainDb: number
-}
-
-export const DEFAULT_DSP_PARAMS: DspParams = {
-  // Phase 2a: 고정 +6dB. Phase 2b에서 LUFS 측정 결과로 동적 갱신된다.
-  makeupGainDb: 6,
-}
-
-export function createDspChain(ctx: AudioContext, params: DspParams = DEFAULT_DSP_PARAMS): DspChain {
+export function createDspChain(ctx: AudioContext): DspChain {
   const limiter = ctx.createDynamicsCompressor()
   limiter.threshold.value = -8
   limiter.ratio.value = 12
@@ -33,7 +28,7 @@ export function createDspChain(ctx: AudioContext, params: DspParams = DEFAULT_DS
   limiter.knee.value = 6
 
   const gain = ctx.createGain()
-  gain.gain.value = dbToLinear(params.makeupGainDb)
+  gain.gain.value = 1 // unity로 시작, AGC가 동적으로 갱신
 
   const glue = ctx.createDynamicsCompressor()
   glue.threshold.value = -18
@@ -42,14 +37,41 @@ export function createDspChain(ctx: AudioContext, params: DspParams = DEFAULT_DS
   glue.release.value = 0.15
   glue.knee.value = 12
 
+  // BS.1770 K-weighting (1단: high-shelf, 2단: high-pass Butterworth)
+  const kweightHS = ctx.createBiquadFilter()
+  kweightHS.type = 'highshelf'
+  kweightHS.frequency.value = 1681.974450955533
+  kweightHS.gain.value = 3.999843853973347
+
+  const kweightHP = ctx.createBiquadFilter()
+  kweightHP.type = 'highpass'
+  kweightHP.frequency.value = 38.13547087602444
+  kweightHP.Q.value = 0.7071067811865476 // Butterworth Q
+
+  // 메인 경로: limiter → gain → glue
   limiter.connect(gain)
   gain.connect(glue)
 
-  return { input: limiter, output: glue, limiter, gain, glue }
+  // 사이드체인: limiter 출력을 K-weighting 필터로 분기 (게인 영향 없는 측정)
+  limiter.connect(kweightHS)
+  kweightHS.connect(kweightHP)
+
+  return {
+    input: limiter,
+    output: glue,
+    limiter,
+    gain,
+    glue,
+    kweightHS,
+    kweightHP,
+    sidechainTap: kweightHP,
+  }
 }
 
 export function disconnectDspChain(chain: DspChain): void {
   chain.limiter.disconnect()
   chain.gain.disconnect()
   chain.glue.disconnect()
+  chain.kweightHS.disconnect()
+  chain.kweightHP.disconnect()
 }
