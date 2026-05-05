@@ -7,7 +7,7 @@ export default defineManifest({
   version: pkg.version,
   description: pkg.description,
   minimum_chrome_version: '116',
-  permissions: ['tabCapture', 'offscreen', 'activeTab', 'tabs'],
+  permissions: ['tabCapture', 'offscreen', 'activeTab', 'tabs', 'storage'],
   host_permissions: ['https://chzzk.naver.com/*'],
   background: {
     service_worker: 'src/service-worker.ts',

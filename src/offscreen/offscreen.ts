@@ -12,6 +12,7 @@ import {
   disposeAgcController,
   type AgcController,
 } from '../agc'
+import { loadParams } from '../storage'
 
 interface GraphNodes {
   stream: MediaStream
@@ -27,6 +28,13 @@ const graphs = new Map<number, GraphNodes>()
 
 // 새 캡처에 적용될 기본 파라미터. SET_PARAMS로 갱신되고 새 그래프 생성 시 사용.
 let currentParams = { ...DEFAULT_AGC_PARAMS }
+
+// 오프스크린 문서 init 시 storage에서 사용자 설정값을 로드하여 currentParams 시드.
+// 첫 startCapture는 이 promise를 기다리도록 한다(없어도 안전하지만 일관성을 위해).
+const paramsLoaded: Promise<void> = loadParams().then((p) => {
+  currentParams = p
+  console.log('[sound-autoscale] 저장된 파라미터 로드됨')
+})
 
 const WORKLET_URL = chrome.runtime.getURL('loudness-processor.js')
 
@@ -45,6 +53,7 @@ async function ensureWorkletLoaded(ctx: AudioContext): Promise<void> {
 }
 
 async function startCapture(tabId: number, streamId: string): Promise<void> {
+  await paramsLoaded
   if (graphs.has(tabId)) {
     console.warn(`[sound-autoscale] tab ${tabId} 이미 캡처 중 — 재시작을 위해 기존 그래프 정리`)
     stopCapture(tabId)

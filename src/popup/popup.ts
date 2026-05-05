@@ -1,10 +1,10 @@
 import { DEFAULT_AGC_PARAMS } from '../agc'
+import { loadParams, saveParams } from '../storage'
 import type {
   ActiveTabsResponse,
   AgcParams,
   CaptureMessage,
   MeasurementResponse,
-  ParamsResponse,
   SimpleResponse,
 } from '../messages'
 
@@ -87,9 +87,8 @@ async function onToggleClick(): Promise<void> {
   await refreshToggleState()
 }
 
-async function loadParams(): Promise<void> {
-  const res = await sendCapture<ParamsResponse>({ type: 'GET_PARAMS' })
-  currentParams = res?.params ?? { ...DEFAULT_AGC_PARAMS }
+async function loadAndApplyParams(): Promise<void> {
+  currentParams = await loadParams()
   applyParamsToUi(currentParams)
 }
 
@@ -101,10 +100,12 @@ function setupSliders(): void {
       const val = parseFloat(slider.value)
       valEl.textContent = formatValue(key, val)
       currentParams = { ...currentParams, [key]: val }
+      // 활성 그래프에 즉시 반영 + storage에 영속화
       void sendCapture<SimpleResponse>({
         type: 'SET_PARAMS',
         params: { [key]: val } as Partial<AgcParams>,
       })
+      void saveParams(currentParams)
     })
   }
 }
@@ -117,6 +118,7 @@ function setupReset(): void {
       type: 'SET_PARAMS',
       params: currentParams,
     })
+    void saveParams(currentParams)
   })
 }
 
@@ -186,7 +188,7 @@ async function init(): Promise<void> {
     void onToggleClick()
   })
 
-  await Promise.all([refreshToggleState(), loadParams()])
+  await Promise.all([refreshToggleState(), loadAndApplyParams()])
   startPolling()
 }
 
