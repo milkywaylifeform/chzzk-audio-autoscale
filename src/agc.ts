@@ -11,6 +11,10 @@ export const MAX_GAIN_DB = 18
 export const MIN_GAIN_DB = -18
 export const SMOOTHING_S = 0.15
 
+// 디버그용: 1초에 한 번씩 측정값과 적용 게인을 콘솔에 출력.
+// Phase 4에서 팝업 UI로 옮긴 뒤 제거 예정.
+const DEBUG_LOG_INTERVAL_MS = 1000
+
 export interface LoudnessMessage {
   type: 'measurement'
   lufs: number
@@ -47,17 +51,36 @@ export function createAgcController(
   node.connect(sink)
   sink.connect(ctx.destination)
 
+  let lastLogAt = 0
+  let lastGainDb = 0
+  let gated = false
+
   node.port.onmessage = (event: MessageEvent<LoudnessMessage>) => {
     const msg = event.data
     if (msg.type !== 'measurement') return
+
     if (!isFinite(msg.lufs) || msg.dbfs < SILENCE_DBFS) {
       // Silence Gate: 무음 구간에서는 게인을 동결하여 폭음 방지.
-      return
+      gated = true
+    } else {
+      gated = false
+      const desiredGainDb = clamp(TARGET_LUFS - msg.lufs, MIN_GAIN_DB, MAX_GAIN_DB)
+      const desiredLinear = dbToLinear(desiredGainDb)
+      controlGain.gain.setTargetAtTime(desiredLinear, ctx.currentTime, SMOOTHING_S)
+      lastGainDb = desiredGainDb
     }
 
-    const desiredGainDb = clamp(TARGET_LUFS - msg.lufs, MIN_GAIN_DB, MAX_GAIN_DB)
-    const desiredLinear = dbToLinear(desiredGainDb)
-    controlGain.gain.setTargetAtTime(desiredLinear, ctx.currentTime, SMOOTHING_S)
+    const now = performance.now()
+    if (now - lastLogAt >= DEBUG_LOG_INTERVAL_MS) {
+      lastLogAt = now
+      const lufsStr = isFinite(msg.lufs) ? msg.lufs.toFixed(1) : '-∞'
+      const dbfsStr = isFinite(msg.dbfs) ? msg.dbfs.toFixed(1) : '-∞'
+      const gainStr = `${lastGainDb >= 0 ? '+' : ''}${lastGainDb.toFixed(1)}dB`
+      const tag = gated ? ' [GATED]' : ''
+      console.log(
+        `[agc] lufs=${lufsStr} dbfs=${dbfsStr} → gain=${gainStr}${tag}`,
+      )
+    }
   }
 
   return { node, sink }
