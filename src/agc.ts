@@ -13,8 +13,10 @@ export const MAX_GAIN_DB = 18
 export const MIN_GAIN_DB = -18
 // 비대칭 시정수: 신호가 커지면(공격) 빠르게 게인 내려서 폭음 방지,
 // 신호가 작아지면(릴리즈) 천천히 게인 올려서 휴지 구간 BGM 부풀림 억제.
+// release 0.8s는 1~3초 휴지에 boost가 너무 빨리 들어가 펌핑 발생 → 3.0s로 증가.
+// 방송 AGC 표준 release(1~10s) 범위 안에서 채널 전환 적응 속도와 균형.
 export const ATTACK_S = 0.15
-export const RELEASE_S = 0.8
+export const RELEASE_S = 3.0
 
 // 디버그용: 1초에 한 번씩 측정값과 적용 게인을 콘솔에 출력.
 // Phase 4에서 팝업 UI로 옮긴 뒤 제거 예정.
