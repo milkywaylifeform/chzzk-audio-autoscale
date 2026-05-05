@@ -6,10 +6,15 @@
 import { dbToLinear } from './dsp'
 
 export const TARGET_LUFS = -15
-export const SILENCE_DBFS = -60
+// 휴지 구간 펌핑 방지를 위해 -60 → -45로 상향. 진짜 디지털 무음뿐 아니라
+// 조용한 BGM 구간에서도 게이팅하여 AGC가 무리한 boost를 시도하지 않게 한다.
+export const SILENCE_DBFS = -45
 export const MAX_GAIN_DB = 18
 export const MIN_GAIN_DB = -18
-export const SMOOTHING_S = 0.15
+// 비대칭 시정수: 신호가 커지면(공격) 빠르게 게인 내려서 폭음 방지,
+// 신호가 작아지면(릴리즈) 천천히 게인 올려서 휴지 구간 BGM 부풀림 억제.
+export const ATTACK_S = 0.15
+export const RELEASE_S = 0.8
 
 // 디버그용: 1초에 한 번씩 측정값과 적용 게인을 콘솔에 출력.
 // Phase 4에서 팝업 UI로 옮긴 뒤 제거 예정.
@@ -60,13 +65,15 @@ export function createAgcController(
     if (msg.type !== 'measurement') return
 
     if (!isFinite(msg.lufs) || msg.dbfs < SILENCE_DBFS) {
-      // Silence Gate: 무음 구간에서는 게인을 동결하여 폭음 방지.
+      // Silence Gate: 무음/조용한 구간에서는 게인을 동결하여 펌핑·폭음 방지.
       gated = true
     } else {
       gated = false
       const desiredGainDb = clamp(TARGET_LUFS - msg.lufs, MIN_GAIN_DB, MAX_GAIN_DB)
       const desiredLinear = dbToLinear(desiredGainDb)
-      controlGain.gain.setTargetAtTime(desiredLinear, ctx.currentTime, SMOOTHING_S)
+      // 비대칭 시정수: 게인 감소(=신호 커짐)는 빠르게, 게인 증가(=신호 작아짐)는 느리게.
+      const tc = desiredGainDb < lastGainDb ? ATTACK_S : RELEASE_S
+      controlGain.gain.setTargetAtTime(desiredLinear, ctx.currentTime, tc)
       lastGainDb = desiredGainDb
     }
 
