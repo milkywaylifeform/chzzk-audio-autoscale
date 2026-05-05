@@ -13,6 +13,7 @@ export type CaptureMessage =
   | { type: 'TOGGLE_TAB'; tabId: number }
   | { type: 'SET_PARAMS'; params: Partial<AgcParams> }
   | { type: 'GET_PARAMS' }
+  | { type: 'GET_MEASUREMENT'; tabId: number }
 
 export type SimpleResponse = { ok: true } | { ok: false; error: string }
 
@@ -24,3 +25,7 @@ export interface ActiveTab {
 export type ActiveTabsResponse = { activeTabs: ActiveTab[] }
 
 export type ParamsResponse = { params: AgcParams }
+
+export type MeasurementResponse =
+  | { found: true; lufs: number; dbfs: number; gainDb: number; gated: boolean }
+  | { found: false }

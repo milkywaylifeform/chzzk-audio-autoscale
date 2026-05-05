@@ -106,13 +106,46 @@ hr {
   border-color: var(--warning);
 }
 
-.settings h2 {
+.settings h2,
+.meter h2 {
   margin: 0 0 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.meter {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: var(--bg-alt);
+  border-radius: 6px;
+}
+
+.meter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.meter-row .m-label {
+  color: var(--fg-muted);
+}
+
+.meter-row .m-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.meter-row .m-val.gated {
+  color: var(--warning);
+}
+
+.meter-row .m-val.tracking {
+  color: var(--accent);
 }
 
 .slider-row {

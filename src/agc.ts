@@ -26,12 +26,20 @@ export interface LoudnessMessage {
   dbfs: number
 }
 
+export interface AgcState {
+  lufs: number
+  dbfs: number
+  gainDb: number
+  gated: boolean
+}
+
 export interface AgcController {
   node: AudioWorkletNode
   /** AudioWorklet을 그래프 활성 상태로 유지하기 위한 zero-gain 싱크. */
   sink: GainNode
   setParams: (updates: Partial<AgcParams>) => void
   getParams: () => AgcParams
+  getState: () => AgcState
 }
 
 const clamp = (x: number, lo: number, hi: number): number =>
@@ -64,10 +72,15 @@ export function createAgcController(
   let lastLogAt = 0
   let lastGainDb = 0
   let gated = false
+  let lastLufs = -Infinity
+  let lastDbfs = -Infinity
 
   node.port.onmessage = (event: MessageEvent<LoudnessMessage>) => {
     const msg = event.data
     if (msg.type !== 'measurement') return
+
+    lastLufs = msg.lufs
+    lastDbfs = msg.dbfs
 
     if (!isFinite(msg.lufs) || msg.dbfs < params.silenceDbfs) {
       // Silence Gate: 무음/조용한 구간에서는 게인을 동결하여 펌핑·폭음 방지.
@@ -103,6 +116,12 @@ export function createAgcController(
     sink,
     setParams: (updates) => Object.assign(params, updates),
     getParams: () => ({ ...params }),
+    getState: () => ({
+      lufs: lastLufs,
+      dbfs: lastDbfs,
+      gainDb: lastGainDb,
+      gated,
+    }),
   }
 }
 

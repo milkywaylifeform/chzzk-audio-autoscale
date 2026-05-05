@@ -3,9 +3,12 @@ import type {
   ActiveTabsResponse,
   AgcParams,
   CaptureMessage,
+  MeasurementResponse,
   ParamsResponse,
   SimpleResponse,
 } from '../messages'
+
+const POLL_INTERVAL_MS = 200
 
 type SliderKey = keyof AgcParams
 
@@ -117,6 +120,61 @@ function setupReset(): void {
   })
 }
 
+function fmtNum(val: number, suffix: string): string {
+  return isFinite(val) ? `${val.toFixed(1)}${suffix}` : '—'
+}
+
+function setMeterEmpty(): void {
+  $('meter-lufs').textContent = '—'
+  $('meter-dbfs').textContent = '—'
+  $('meter-gain').textContent = '—'
+  const status = $('meter-status')
+  status.textContent = 'OFF'
+  status.className = 'm-val'
+}
+
+async function pollMeasurement(): Promise<void> {
+  if (currentTabId === null) {
+    setMeterEmpty()
+    return
+  }
+  const res = await sendCapture<MeasurementResponse>({
+    type: 'GET_MEASUREMENT',
+    tabId: currentTabId,
+  })
+  if (!res || !res.found) {
+    setMeterEmpty()
+    return
+  }
+  $('meter-lufs').textContent = fmtNum(res.lufs, ' LUFS')
+  $('meter-dbfs').textContent = fmtNum(res.dbfs, ' dBFS')
+  const gainSign = res.gainDb >= 0 ? '+' : ''
+  $('meter-gain').textContent = `${gainSign}${res.gainDb.toFixed(1)} dB`
+  const status = $('meter-status')
+  if (res.gated) {
+    status.textContent = 'GATED'
+    status.className = 'm-val gated'
+  } else {
+    status.textContent = 'TRACKING'
+    status.className = 'm-val tracking'
+  }
+}
+
+let pollHandle: number | null = null
+
+function startPolling(): void {
+  if (pollHandle !== null) return
+  void pollMeasurement()
+  pollHandle = window.setInterval(() => void pollMeasurement(), POLL_INTERVAL_MS)
+}
+
+function stopPolling(): void {
+  if (pollHandle !== null) {
+    window.clearInterval(pollHandle)
+    pollHandle = null
+  }
+}
+
 async function init(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   currentTabId = tab?.id ?? null
@@ -129,8 +187,11 @@ async function init(): Promise<void> {
   })
 
   await Promise.all([refreshToggleState(), loadParams()])
+  startPolling()
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   void init()
 })
+
+window.addEventListener('beforeunload', stopPolling)

@@ -1,6 +1,7 @@
 import type {
   ActiveTabsResponse,
   CaptureMessage,
+  MeasurementResponse,
   ParamsResponse,
   SimpleResponse,
 } from '../messages'
@@ -100,7 +101,11 @@ chrome.runtime.onMessage.addListener(
     msg: CaptureMessage,
     _sender,
     sendResponse: (
-      r: SimpleResponse | ActiveTabsResponse | ParamsResponse,
+      r:
+        | SimpleResponse
+        | ActiveTabsResponse
+        | ParamsResponse
+        | MeasurementResponse,
     ) => void,
   ) => {
     if (msg.type === 'START_CAPTURE') {
@@ -135,6 +140,16 @@ chrome.runtime.onMessage.addListener(
     }
     if (msg.type === 'GET_PARAMS') {
       sendResponse({ params: { ...currentParams } })
+      return false
+    }
+    if (msg.type === 'GET_MEASUREMENT') {
+      const g = graphs.get(msg.tabId)
+      if (!g) {
+        sendResponse({ found: false })
+      } else {
+        const s = g.agc.getState()
+        sendResponse({ found: true, ...s })
+      }
       return false
     }
     return false
