@@ -1,8 +1,10 @@
 import type { CaptureMessage, CaptureResponse } from '../messages'
+import { createDspChain, disconnectDspChain, type DspChain } from '../dsp'
 
 interface GraphNodes {
   stream: MediaStream
   source: MediaStreamAudioSourceNode
+  dsp: DspChain
 }
 
 let audioContext: AudioContext | null = null
@@ -38,18 +40,21 @@ async function startCapture(tabId: number, streamId: string): Promise<void> {
   }
 
   const source = ctx.createMediaStreamSource(stream)
-  // Phase 1: DSP 없이 바로 스피커로 직결.
-  // tabCapture가 원본 탭 오디오를 음소거시키므로 이 재생이 없으면 무음이 된다.
-  source.connect(ctx.destination)
+  const dsp = createDspChain(ctx)
 
-  graphs.set(tabId, { stream, source })
-  console.log(`[sound-autoscale] tab ${tabId} 캡처 시작`)
+  // tabCapture가 원본 탭 오디오를 음소거시키므로 이 재생이 없으면 무음이 된다.
+  source.connect(dsp.input)
+  dsp.output.connect(ctx.destination)
+
+  graphs.set(tabId, { stream, source, dsp })
+  console.log(`[sound-autoscale] tab ${tabId} 캡처 시작 (DSP chain: limiter+gain+glue)`)
 }
 
 function stopCapture(tabId: number): void {
   const graph = graphs.get(tabId)
   if (!graph) return
   graph.source.disconnect()
+  disconnectDspChain(graph.dsp)
   graph.stream.getTracks().forEach((t) => t.stop())
   graphs.delete(tabId)
   console.log(`[sound-autoscale] tab ${tabId} 캡처 중지`)
