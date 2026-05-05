@@ -1,13 +1,10 @@
-import type { CaptureMessage, CaptureResponse } from './messages'
+import type {
+  ActiveTabsResponse,
+  CaptureMessage,
+  SimpleResponse,
+} from './messages'
 
 const OFFSCREEN_DOCUMENT_PATH = 'src/offscreen/offscreen.html'
-
-interface TabState {
-  streamId: string
-  enabledAt: number
-}
-
-const tabStates = new Map<number, TabState>()
 
 async function hasOffscreenDocument(): Promise<boolean> {
   const contexts = await chrome.runtime.getContexts({
@@ -26,14 +23,29 @@ async function ensureOffscreenDocument(): Promise<void> {
   })
 }
 
-async function closeOffscreenIfEmpty(): Promise<void> {
-  if (tabStates.size > 0) return
-  if (!(await hasOffscreenDocument())) return
-  await chrome.offscreen.closeDocument()
+async function getActiveTabs(): Promise<Set<number>> {
+  if (!(await hasOffscreenDocument())) return new Set()
+  try {
+    const res = (await chrome.runtime.sendMessage({
+      type: 'GET_ACTIVE_TABS',
+    } satisfies CaptureMessage)) as ActiveTabsResponse | undefined
+    return new Set(res?.activeTabIds ?? [])
+  } catch (e) {
+    console.warn('[sound-autoscale] GET_ACTIVE_TABS 실패:', e)
+    return new Set()
+  }
 }
 
-async function send(msg: CaptureMessage): Promise<CaptureResponse> {
-  return chrome.runtime.sendMessage<CaptureMessage, CaptureResponse>(msg)
+async function closeOffscreenIfEmpty(): Promise<void> {
+  if (!(await hasOffscreenDocument())) return
+  const active = await getActiveTabs()
+  if (active.size === 0) {
+    await chrome.offscreen.closeDocument()
+  }
+}
+
+async function send(msg: CaptureMessage): Promise<SimpleResponse> {
+  return (await chrome.runtime.sendMessage(msg)) as SimpleResponse
 }
 
 async function getStreamId(tabId: number): Promise<string> {
@@ -52,11 +64,8 @@ async function getStreamId(tabId: number): Promise<string> {
 async function startForTab(tabId: number): Promise<void> {
   const streamId = await getStreamId(tabId)
   await ensureOffscreenDocument()
-  tabStates.set(tabId, { streamId, enabledAt: Date.now() })
-
   const res = await send({ type: 'START_CAPTURE', tabId, streamId })
   if (!res.ok) {
-    tabStates.delete(tabId)
     await closeOffscreenIfEmpty()
     throw new Error(`오프스크린 캡처 시작 실패: ${res.error}`)
   }
@@ -65,9 +74,11 @@ async function startForTab(tabId: number): Promise<void> {
 }
 
 async function stopForTab(tabId: number): Promise<void> {
-  if (!tabStates.has(tabId)) return
+  if (!(await hasOffscreenDocument())) {
+    await chrome.action.setBadgeText({ tabId, text: '' })
+    return
+  }
   await send({ type: 'STOP_CAPTURE', tabId })
-  tabStates.delete(tabId)
   await closeOffscreenIfEmpty()
   await chrome.action.setBadgeText({ tabId, text: '' })
 }
@@ -76,7 +87,8 @@ chrome.action.onClicked.addListener((tab) => {
   void (async () => {
     if (!tab.id) return
     try {
-      if (tabStates.has(tab.id)) {
+      const active = await getActiveTabs()
+      if (active.has(tab.id)) {
         await stopForTab(tab.id)
       } else {
         await startForTab(tab.id)
@@ -92,9 +104,13 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 })
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status === 'loading' && tabStates.has(tabId)) {
-    void stopForTab(tabId)
-  }
+  if (changeInfo.status !== 'loading') return
+  void (async () => {
+    const active = await getActiveTabs()
+    if (active.has(tabId)) {
+      await stopForTab(tabId)
+    }
+  })()
 })
 
 console.log('[sound-autoscale] service worker 시작')

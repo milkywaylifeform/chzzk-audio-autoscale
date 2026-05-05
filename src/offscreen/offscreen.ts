@@ -1,4 +1,8 @@
-import type { CaptureMessage, CaptureResponse } from '../messages'
+import type {
+  ActiveTabsResponse,
+  CaptureMessage,
+  SimpleResponse,
+} from '../messages'
 import { createDspChain, disconnectDspChain, type DspChain } from '../dsp'
 
 interface GraphNodes {
@@ -19,13 +23,12 @@ function getAudioContext(): AudioContext {
 
 async function startCapture(tabId: number, streamId: string): Promise<void> {
   if (graphs.has(tabId)) {
-    console.warn(`[sound-autoscale] tab ${tabId} 이미 캡처 중`)
-    return
+    console.warn(`[sound-autoscale] tab ${tabId} 이미 캡처 중 — 재시작을 위해 기존 그래프 정리`)
+    stopCapture(tabId)
   }
 
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
-      // chrome 전용 제약 — 표준 MediaTrackConstraints에는 없음
       mandatory: {
         chromeMediaSource: 'tab',
         chromeMediaSourceId: streamId,
@@ -47,7 +50,7 @@ async function startCapture(tabId: number, streamId: string): Promise<void> {
   dsp.output.connect(ctx.destination)
 
   graphs.set(tabId, { stream, source, dsp })
-  console.log(`[sound-autoscale] tab ${tabId} 캡처 시작 (DSP chain: limiter+gain+glue)`)
+  console.log(`[sound-autoscale] tab ${tabId} 캡처 시작 (active=${graphs.size})`)
 }
 
 function stopCapture(tabId: number): void {
@@ -57,7 +60,7 @@ function stopCapture(tabId: number): void {
   disconnectDspChain(graph.dsp)
   graph.stream.getTracks().forEach((t) => t.stop())
   graphs.delete(tabId)
-  console.log(`[sound-autoscale] tab ${tabId} 캡처 중지`)
+  console.log(`[sound-autoscale] tab ${tabId} 캡처 중지 (active=${graphs.size})`)
 
   if (graphs.size === 0 && audioContext) {
     void audioContext.close()
@@ -66,7 +69,11 @@ function stopCapture(tabId: number): void {
 }
 
 chrome.runtime.onMessage.addListener(
-  (msg: CaptureMessage, _sender, sendResponse: (r: CaptureResponse) => void) => {
+  (
+    msg: CaptureMessage,
+    _sender,
+    sendResponse: (r: SimpleResponse | ActiveTabsResponse) => void,
+  ) => {
     if (msg.type === 'START_CAPTURE') {
       startCapture(msg.tabId, msg.streamId)
         .then(() => sendResponse({ ok: true }))
@@ -79,6 +86,10 @@ chrome.runtime.onMessage.addListener(
     if (msg.type === 'STOP_CAPTURE') {
       stopCapture(msg.tabId)
       sendResponse({ ok: true })
+      return false
+    }
+    if (msg.type === 'GET_ACTIVE_TABS') {
+      sendResponse({ activeTabIds: Array.from(graphs.keys()) })
       return false
     }
     return false
