@@ -74,10 +74,10 @@ MV3 환경에서 오디오 처리와 같은 DOM 의속적인 백그라운드 작
 
 | 컴포넌트 | 실행 컨텍스트 | 주요 역할 및 데이터 흐름 |
 | --- | --- | --- |
-| **Popup UI** | 팝업 창 (`popup.html`) | 사용자가 스케일링 강도(Threshold, Ratio) 및 목표 볼륨(LUFS)을 조절. 설정 변경 시 서비스 워커를 경유하여 오프스크린 문서로 파라미터 업데이트 메시지 발송. |
-| **Service Worker** | 백그라운드 스레드 | 확장 프로그램 아이콘 클릭 감지. 탭 캡처 API로 `streamId` 생성. 오프스크린 문서가 존재하지 않으면 생성(`createDocument`). `streamId`를 오프스크린 문서로 전달.[^22] |
-| **Offscreen Document** | 숨겨진 DOM (`offscreen.html`) | `getUserMedia`로 스트림 수신.[^22] Web Audio API 그래프 구성. 실시간 LUFS 분석 및 AGC 적용. 처리된 오디오를 시스템 스피커로 출력.[^22] |
-| **Content Script** | 치지직 웹 페이지 | (선택적) 플레이어 상태를 모니터링하여 방송 중단(버퍼링) 시 팝업 UI의 시각적 피드백을 위한 상태 메시지 발송.[^17] 오디오 캡처에는 관여하지 않음. |
+| **Popup UI** | 팝업 창 (`popup.html`) | 활성 탭 리스트 표시. 사용자가 탭별로 스케일링 강도 및 목표 음량을 개별 조절. 설정 변경 시 서비스 워커를 경유하여 오프스크린 문서로 `{tabId, params}` 메시지 발송. |
+| **Service Worker** | 백그라운드 스레드 | 확장 프로그램 아이콘 클릭 감지. 탭 캡처 API로 `streamId` 생성. 오프스크린 문서가 존재하지 않으면 생성(`createDocument`). `Map<tabId, state>`로 다중 탭 상태 관리, 탭별 `streamId`를 오프스크린 문서로 전달.[^22] |
+| **Offscreen Document** | 숨겨진 DOM (`offscreen.html`) | 탭별 `getUserMedia` 호출로 스트림 수신.[^22] 탭별 독립적인 Web Audio API 그래프 구성 및 `Map<tabId, graphNodes>` 보관. 실시간 Momentary Loudness 분석 및 AGC를 탭별로 적용. 모든 탭의 처리된 오디오를 공통 `audioContext.destination`으로 합쳐 시스템 스피커로 출력.[^22] |
+| **Content Script** | 치지직 웹 페이지 | (선택적) 플레이어 상태를 모니터링하여 방송 중단(버퍼링)·DRM 감지 시 팝업 UI의 시각적 피드백을 위한 상태 메시지 발송.[^17] 오디오 캡처에는 관여하지 않음. |
 
 이러한 철저한 모듈식 아키텍처는 MV3의 보안 정책을 완벽히 준수하면서도, 메인 스레드의 성능 저하 없이 독립적인 백그라운드 오디오 렌더링을 보장한다.
 
@@ -197,13 +197,46 @@ DSP 처리는 **`AudioWorklet`** 으로 구현한다. `requestAnimationFrame`은
 
 위 조건을 만족하면 DRM으로 판정하고, 시스템은 오류를 삼키고 침묵하는 대신 팝업 UI를 통해 **"현재 방송은 저작권 보호(DRM) 기술이 적용되어 오디오 스케일링 기능을 지원할 수 없습니다."**라는 명확한 시각적 예외 메시지를 표시하여 사용자의 혼란을 방지해야 한다.
 
-### 7.4. 동시 다중 탭 정책
+### 7.4. 동시 다중 탭 지원
 
-크롬 익스텐션은 **익스텐션당 단일 오프스크린 문서**만 보유 가능하다.[^30] 사용자가 치지직 탭을 2개 이상 열고 각 탭에서 AGC를 활성화하려 할 경우 다음 정책을 적용한다:
+크롬 익스텐션은 **익스텐션당 단일 오프스크린 문서**만 보유 가능하지만[^30], 단일 오프스크린 문서 내부에는 **여러 개의 Web Audio 그래프를 동시에 운용 가능**하다. 따라서 멀티뷰 시청처럼 사용자가 여러 치지직 탭에서 AGC를 동시에 활성화하는 시나리오를 지원한다.
 
-- 동시에 단 하나의 탭만 캡처 가능. 두 번째 활성화 요청 시 첫 번째 탭의 캡처를 종료하고 새 탭으로 전환한다.
-- 서비스 워커 내부에 `activeCaptureTabId` 상태를 유지하며, `chrome.tabs.onActivated` / `onRemoved` / `onUpdated` 이벤트로 동기화한다.
-- 팝업 UI에서 현재 어느 탭이 활성 상태인지 명시적으로 보여주고, 사용자가 의도치 않게 다른 탭의 AGC를 끄게 되는 상황을 방지한다.
+#### 아키텍처
+
+```
+Service Worker
+  ├─ tabCapture.getMediaStreamId({targetTabId: A}) → idA
+  ├─ tabCapture.getMediaStreamId({targetTabId: B}) → idB
+  └─ tabCapture.getMediaStreamId({targetTabId: C}) → idC
+        │
+        ▼ 모두 같은 오프스크린 문서로 전달
+Offscreen Document (단 1개)
+  ├─ Graph A: SourceA → Limiter → AGC_A → Glue ──┐
+  ├─ Graph B: SourceB → Limiter → AGC_B → Glue ──┤
+  └─ Graph C: SourceC → Limiter → AGC_C → Glue ──┤
+                                                  ▼
+                                       audioContext.destination
+```
+
+`chrome.tabCapture`는 탭별로 독립적인 streamId를 발급하며, 한 익스텐션이 여러 탭을 동시에 캡처하는 것을 허용한다(단, 한 탭은 한 번만 캡처 가능).
+
+#### 정책
+
+- **동시 활성 탭 한도**: 기본 N=4, 사용자 설정으로 1~8 범위 조절 가능. 한도 초과 시 가장 오래 비활성 상태였던 탭부터 자동 해제(LRU) 또는 사용자에게 confirm 다이얼로그.
+- **사용자 제스처 요구사항**: `tabCapture.getMediaStreamId()`는 user activation을 요구하므로 **각 탭마다 익스텐션 아이콘을 한 번씩 클릭**해야 한다(자동 일괄 활성화 불가).
+- **상태 관리**: 서비스 워커 내부에 `Map<tabId, {streamId, settings, lastActiveAt}>`, 오프스크린 문서 내부에 `Map<tabId, {sourceNode, gainNode, agcWorklet, ...}>` 형태로 탭별 상태 보관.
+- **이벤트 동기화**: `chrome.tabs.onRemoved(tabId)` 시 **해당 탭의 그래프만 부분 해제**하고 나머지는 유지한다. `onUpdated`로 풀 네비게이션 감지 시 해당 탭 자동 정리 후 사용자 재활성화 유도 배지 노출.
+- **개별 제어**: 팝업 UI는 활성 탭 리스트와 탭별 on/off 토글, 목표 음량(LUFS)·압축 강도 슬라이더를 각각 제공한다.
+
+#### 비용 추정
+
+- AudioWorklet 그래프 1개당 약 1코어의 2~3% CPU 점유. 4탭 동시 운영 시 약 10~15% — 일반 사용자 PC에서 허용 가능.
+- 메모리는 탭당 수 MB 수준(스트림 버퍼 + 노드 인스턴스).
+- 8탭 초과 시 사용자 PC 사양에 따라 오디오 글리치 발생 가능 → 한도 N=8을 상한으로 권장.
+
+#### 호스트 권한 제한
+
+익스텐션이 치지직 전용임을 명확히 하기 위해 `host_permissions`를 `https://chzzk.naver.com/*` 등으로 제한하여 사용자가 비치지직 탭에서 캡처를 시도하는 것을 차단한다.
 
 ### 7.5. 사용자 경험(UX) 부작용 고지
 
@@ -219,10 +252,10 @@ DSP 처리는 **`AudioWorklet`** 으로 구현한다. `requestAnimationFrame`은
 
 | 개발 단계 (Phase) | 주요 목표 및 세부 구현 과제 | Definition of Done (검증) |
 | --- | --- | --- |
-| **Phase 1: MV3 코어 환경 및 캡처 파이프라인 구축** | - `manifest.json` 생성, `manifest_version: 3`, `minimum_chrome_version: "116"`, V3 권한(`tabCapture`, `offscreen`, `activeTab`, `tabs`) 부여[^23]<br>- 서비스 워커 기반 확장 프로그램 생명 주기 및 아이콘 클릭 액션 라우팅 구현 (`chrome.action.onClicked`)<br>- `USER_MEDIA` 사유로 오프스크린 문서 생성 및 중복 방지 로직(`chrome.runtime.getContexts`) 구현[^30]<br>- `tabCapture.getMediaStreamId({targetTabId})`를 활용하여 탭의 오디오 스트림을 오프스크린 문서로 전달, 오프스크린에서 `getUserMedia({audio: {mandatory: {chromeMediaSource: 'tab', chromeMediaSourceId: streamId}}})` 호출[^22]<br>- 처리된 스트림을 `audioContext.destination`으로 직결하여 음성 청취 가능 상태 확보 | - 빈 오디오 그래프(소스 → 목적지 직결) 상태에서 치지직 방송이 정상 청취되는가<br>- 익스텐션 아이콘 두 번 클릭(켜기/끄기) 시 오프스크린 문서가 1개만 존재하는가 |
+| **Phase 1: MV3 코어 환경 및 캡처 파이프라인 구축** | - `manifest.json` 생성, `manifest_version: 3`, `minimum_chrome_version: "116"`, V3 권한(`tabCapture`, `offscreen`, `activeTab`, `tabs`) 부여, `host_permissions: ["https://chzzk.naver.com/*"]`[^23]<br>- 서비스 워커 기반 확장 프로그램 생명 주기 및 아이콘 클릭 액션 라우팅 구현 (`chrome.action.onClicked`)<br>- `USER_MEDIA` 사유로 오프스크린 문서 생성 및 중복 방지 로직(`chrome.runtime.getContexts`) 구현[^30]<br>- `tabCapture.getMediaStreamId({targetTabId})`를 활용하여 탭의 오디오 스트림을 오프스크린 문서로 전달, 오프스크린에서 `getUserMedia({audio: {mandatory: {chromeMediaSource: 'tab', chromeMediaSourceId: streamId}}})` 호출[^22]<br>- **탭별 상태 맵**: 서비스 워커에 `Map<tabId, {streamId, settings, lastActiveAt}>`, 오프스크린에 `Map<tabId, {sourceNode, gainNode, ...}>` 보관<br>- 처리된 스트림을 `audioContext.destination`으로 직결하여 음성 청취 가능 상태 확보 | - 빈 오디오 그래프(소스 → 목적지 직결) 상태에서 치지직 방송이 정상 청취되는가<br>- 익스텐션 아이콘 두 번 클릭(켜기/끄기) 시 오프스크린 문서가 1개만 존재하는가<br>- 2개 탭에서 각각 활성화 시 두 탭 모두 정상 캡처되고 둘 다 청취 가능한가 |
 | **Phase 2: DSP 엔진 및 Momentary Loudness 오토 스케일링 알고리즘 탑재** | - 오프스크린 문서 내 Web Audio 노드 그래프 직렬 연결 구축 (Source → Limiter → [Analyser 사이드체인] → Gain → Glue Compressor → `audioContext.destination`)[^27]<br>- 6.2의 Limiter/Glue 파라미터 적용[^32]<br>- **AudioWorklet 기반** Momentary Loudness 계산 모듈 개발: 400ms 슬라이딩 윈도, BS.1770 K-weighting 필터(1681Hz HS +4dB / 38Hz HP) 구현[^39]<br>- `setTargetAtTime(timeConstant=0.15s)`로 부드러운 게인 추적, 게인 ±18dB 클램핑 | - BS.1770 참조 음원(EBU TECH 3341 테스트 시퀀스)으로 Momentary Loudness 측정 오차 ±0.5 LU 이내 검증<br>- 다양한 입력 음량(-30 ~ -10 LUFS)에서 목표 -15 LUFS로 5초 이내 수렴 |
-| **Phase 3: 극한 예외 처리 통합 (사용자 핵심 요구사항)** | - **방송 중단 방어**: AGC 로직 내 노이즈 플로어 탐지(-60 dBFS)로 Silence Gate 구현, 무음 시 게인 동결(Freeze)[^33]<br>- **화질 변경 방어**: `tabCapture` 동일 탭 내 SPA 라우팅·MSE 세그먼트 교체에 견고함을 통합 테스트로 검증<br>- **페이지 네비게이션 방어**: `chrome.tabs.onUpdated`로 풀 네비게이션·새로고침 감지 시 캡처 종료 및 팝업 배지로 사용자 재활성화 유도(자동 재획득은 user activation 제약으로 불가)<br>- DRM 다중 휴리스틱(7.3) Content Script 모듈 개발<br>- `chrome.tabs.onRemoved` 이벤트를 캡처하여 `audioContext.close()` + `MediaStreamTrack.stop()` 강제 클린업[^43] | - 30초+ 인공 무음 신호 입력 후 정상 신호 복귀 시 폭음 없이 매끄럽게 AGC 재개<br>- 화질 변경(1080p ↔ 480p) 10회 반복 시 오디오 끊김 0회<br>- 탭 닫기 후 `chrome://media-internals`에서 좀비 스트림 0개 |
-| **Phase 4: UI/UX 고도화 및 스토어 배포 준비** | - 팝업 UI(`popup.html`) 제작: 목표 음량(Target Loudness LUFS), Limiter Threshold, Glue 강도 슬라이더<br>- 서비스 워커 경유 양방향 실시간 메시지 패싱으로 UI ↔ 오프스크린 DSP 파라미터 동기화<br>- 다중 탭 정책(7.4) UI 반영: 활성 탭 표시 및 전환 시 confirm 다이얼로그<br>- UX 부작용 고지(7.5) 온보딩 화면 추가<br>- DRM 감지 시 오류 처리 UX 구현<br>- 백그라운드 리소스 점유율(CPU 프로파일링): AudioWorklet 단일 인스턴스 기준 CPU 1코어의 5% 이하 목표<br>- 최종 크롬 웹 스토어 심사 가이드라인 점검 및 배포 | - 30분 연속 방송 청취 시 메모리 누수 0 (Chrome Task Manager 모니터링)<br>- 크롬 웹 스토어 심사 통과 |
+| **Phase 3: 극한 예외 처리 통합 (사용자 핵심 요구사항)** | - **방송 중단 방어**: AGC 로직 내 노이즈 플로어 탐지(-60 dBFS)로 Silence Gate 구현, 무음 시 게인 동결(Freeze)[^33]<br>- **화질 변경 방어**: `tabCapture` 동일 탭 내 SPA 라우팅·MSE 세그먼트 교체에 견고함을 통합 테스트로 검증<br>- **페이지 네비게이션 방어**: `chrome.tabs.onUpdated`로 풀 네비게이션·새로고침 감지 시 해당 탭의 그래프만 부분 해제하고 팝업 배지로 사용자 재활성화 유도(자동 재획득은 user activation 제약으로 불가)<br>- DRM 다중 휴리스틱(7.3) Content Script 모듈 개발<br>- **다중 탭 부분 정리**: `chrome.tabs.onRemoved(tabId)` 이벤트 시 해당 탭의 오디오 그래프만 선택적으로 해제(`source.disconnect()`, `MediaStreamTrack.stop()`, 맵에서 제거)하고, 다른 탭은 영향받지 않도록 보장. 모든 탭이 해제된 경우에만 `audioContext.close()` 및 오프스크린 문서 종료[^43]<br>- **LRU 한도 관리**: 활성 탭 수가 사용자 설정 한도(N)를 초과 시 가장 오래 비활성 상태였던 탭부터 자동 해제 또는 confirm 다이얼로그 | - 30초+ 인공 무음 신호 입력 후 정상 신호 복귀 시 폭음 없이 매끄럽게 AGC 재개<br>- 화질 변경(1080p ↔ 480p) 10회 반복 시 오디오 끊김 0회<br>- 다중 탭 시나리오: 4개 탭 활성 상태에서 1개 탭만 닫을 때 나머지 3개 탭의 오디오가 끊기지 않는가<br>- 탭 닫기 후 `chrome://media-internals`에서 좀비 스트림 0개 |
+| **Phase 4: UI/UX 고도화 및 스토어 배포 준비** | - 팝업 UI(`popup.html`) 제작: **활성 탭 리스트** + 탭별 on/off 토글 + 탭별 목표 음량(Target LUFS)·Limiter Threshold·Glue 강도 슬라이더<br>- 동시 활성 탭 한도(N=1~8) 사용자 설정 슬라이더 제공<br>- 서비스 워커 경유 양방향 실시간 메시지 패싱으로 UI ↔ 오프스크린 DSP 파라미터 탭별 동기화<br>- 다중 탭 한도 초과 시 LRU 자동 해제 또는 confirm 다이얼로그(7.4)<br>- UX 부작용 고지(7.5) 온보딩 화면 추가<br>- DRM 감지 시 오류 처리 UX 구현<br>- 백그라운드 리소스 점유율(CPU 프로파일링): AudioWorklet 인스턴스 1개당 1코어의 3% 이하, 4탭 동시 운영 시 합계 15% 이하 목표<br>- 최종 크롬 웹 스토어 심사 가이드라인 점검 및 배포 | - 30분 연속 방송 청취 시 메모리 누수 0 (Chrome Task Manager 모니터링)<br>- 4탭 동시 활성 상태에서 30분 연속 운영 시 글리치 발생 0회, CPU 누적 평균 15% 이하<br>- 크롬 웹 스토어 심사 통과 |
 
 ## 9. 결론
 
