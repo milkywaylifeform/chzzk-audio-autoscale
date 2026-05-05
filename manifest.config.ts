@@ -14,7 +14,8 @@ export default defineManifest({
     type: 'module',
   },
   action: {
-    default_title: '클릭하여 오디오 오토 스케일링 켜기/끄기',
+    default_title: 'Chzzk Audio Auto-Scale',
+    default_popup: 'src/popup/popup.html',
   },
   web_accessible_resources: [
     {

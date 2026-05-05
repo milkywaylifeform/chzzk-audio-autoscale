@@ -121,21 +121,33 @@ async function stopForTab(tabId: number, finalBadgeText: string = ''): Promise<v
   }
 }
 
-chrome.action.onClicked.addListener((tab) => {
-  void (async () => {
-    if (!tab.id) return
-    try {
-      const active = await getActiveTabs()
-      const isActive = active.some((t) => t.tabId === tab.id)
-      if (isActive) {
-        await stopForTab(tab.id)
-      } else {
-        await startForTab(tab.id)
+// 팝업 UI에서 TOGGLE_TAB 메시지로 토글 요청. (action.onClicked는 default_popup이
+// 설정되면 더 이상 발화하지 않으므로 여기서 처리.)
+chrome.runtime.onMessage.addListener((msg: CaptureMessage, _sender, sendResponse) => {
+  if (msg.type === 'TOGGLE_TAB') {
+    void (async () => {
+      try {
+        const active = await getActiveTabs()
+        const isActive = active.some((t) => t.tabId === msg.tabId)
+        if (isActive) {
+          await stopForTab(msg.tabId)
+        } else {
+          await startForTab(msg.tabId)
+        }
+        sendResponse({ ok: true } satisfies SimpleResponse)
+      } catch (e) {
+        console.error('[sound-autoscale] 토글 실패:', e)
+        sendResponse({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        } satisfies SimpleResponse)
       }
-    } catch (e) {
-      console.error('[sound-autoscale] 토글 실패:', e)
-    }
-  })()
+    })()
+    return true
+  }
+  // SET_PARAMS, GET_PARAMS, GET_ACTIVE_TABS, START/STOP_CAPTURE는 offscreen이 처리.
+  // SW는 자기 책임 메시지가 아니면 false 반환하여 sendResponse 권한을 양보.
+  return false
 })
 
 chrome.tabs.onRemoved.addListener((tabId) => {

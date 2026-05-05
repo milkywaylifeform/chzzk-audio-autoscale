@@ -1,11 +1,13 @@
 import type {
   ActiveTabsResponse,
   CaptureMessage,
+  ParamsResponse,
   SimpleResponse,
 } from '../messages'
 import { createDspChain, disconnectDspChain, type DspChain } from '../dsp'
 import {
   createAgcController,
+  DEFAULT_AGC_PARAMS,
   disposeAgcController,
   type AgcController,
 } from '../agc'
@@ -21,6 +23,9 @@ interface GraphNodes {
 let audioContext: AudioContext | null = null
 let workletReady: Promise<void> | null = null
 const graphs = new Map<number, GraphNodes>()
+
+// 새 캡처에 적용될 기본 파라미터. SET_PARAMS로 갱신되고 새 그래프 생성 시 사용.
+let currentParams = { ...DEFAULT_AGC_PARAMS }
 
 const WORKLET_URL = chrome.runtime.getURL('loudness-processor.js')
 
@@ -62,7 +67,7 @@ async function startCapture(tabId: number, streamId: string): Promise<void> {
 
   const source = ctx.createMediaStreamSource(stream)
   const dsp = createDspChain(ctx)
-  const agc = createAgcController(ctx, dsp.sidechainTap, dsp.gain)
+  const agc = createAgcController(ctx, dsp.sidechainTap, dsp.gain, currentParams)
 
   source.connect(dsp.input)
   dsp.output.connect(ctx.destination)
@@ -94,7 +99,9 @@ chrome.runtime.onMessage.addListener(
   (
     msg: CaptureMessage,
     _sender,
-    sendResponse: (r: SimpleResponse | ActiveTabsResponse) => void,
+    sendResponse: (
+      r: SimpleResponse | ActiveTabsResponse | ParamsResponse,
+    ) => void,
   ) => {
     if (msg.type === 'START_CAPTURE') {
       startCapture(msg.tabId, msg.streamId)
@@ -116,6 +123,18 @@ chrome.runtime.onMessage.addListener(
         startedAt: g.startedAt,
       }))
       sendResponse({ activeTabs })
+      return false
+    }
+    if (msg.type === 'SET_PARAMS') {
+      Object.assign(currentParams, msg.params)
+      for (const g of graphs.values()) {
+        g.agc.setParams(msg.params)
+      }
+      sendResponse({ ok: true })
+      return false
+    }
+    if (msg.type === 'GET_PARAMS') {
+      sendResponse({ params: { ...currentParams } })
       return false
     }
     return false

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>Chzzk Audio Auto-Scale</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Chzzk Audio Auto-Scale</h1>
+    </header>
+
+    <section class="status">
+      <div class="tab-info">
+        <span class="label">현재 탭</span>
+        <span id="tab-title" class="value">-</span>
+      </div>
+      <button id="toggle-btn" class="toggle" disabled>...</button>
+    </section>
+
+    <hr />
+
+    <section class="settings">
+      <h2>AGC 설정</h2>
+
+      <div class="slider-row">
+        <label for="targetLufs">목표 음량</label>
+        <input type="range" id="targetLufs" min="-30" max="-5" step="0.5" />
+        <span id="targetLufs-val" class="val"></span>
+      </div>
+
+      <div class="slider-row">
+        <label for="silenceDbfs">Silence Gate</label>
+        <input type="range" id="silenceDbfs" min="-70" max="-25" step="1" />
+        <span id="silenceDbfs-val" class="val"></span>
+      </div>
+
+      <div class="slider-row">
+        <label for="maxGainDb">최대 증폭</label>
+        <input type="range" id="maxGainDb" min="6" max="24" step="1" />
+        <span id="maxGainDb-val" class="val"></span>
+      </div>
+
+      <div class="slider-row">
+        <label for="attackS">Attack</label>
+        <input type="range" id="attackS" min="0.05" max="1" step="0.05" />
+        <span id="attackS-val" class="val"></span>
+      </div>
+
+      <div class="slider-row">
+        <label for="releaseS">Release</label>
+        <input type="range" id="releaseS" min="0.5" max="10" step="0.5" />
+        <span id="releaseS-val" class="val"></span>
+      </div>
+
+      <button id="reset-btn" class="reset">기본값 복원</button>
+    </section>
+
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>
