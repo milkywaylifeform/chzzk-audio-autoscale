@@ -31,6 +31,11 @@
 
 자세한 설계 의도와 의사결정은 [ROADMAP.md](./ROADMAP.md) 참고.
 
+크롬 웹 스토어 출시 관련 문서:
+- [docs/STORE_LISTING.md](./docs/STORE_LISTING.md) — 등록 폼용 설명·권한 정당화
+- [docs/PRIVACY_POLICY.md](./docs/PRIVACY_POLICY.md) — 개인정보처리방침
+- [docs/ICON_CONCEPT.md](./docs/ICON_CONCEPT.md) — 아이콘 디자인 명세
+
 ## 개발 환경
 
 - Node.js 20+
