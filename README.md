@@ -180,3 +180,7 @@ sound-autoscale/
 - [Chrome Offscreen API](https://developer.chrome.com/docs/extensions/reference/api/offscreen)
 - [Chrome tabCapture API](https://developer.chrome.com/docs/extensions/reference/api/tabCapture)
 - [@crxjs/vite-plugin](https://crxjs.dev/)
+
+## 라이선스
+
+[MIT License](./LICENSE)

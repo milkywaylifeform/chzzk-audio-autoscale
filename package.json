@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "치지직 라이브 스트리밍 오디오 오토 스케일링 크롬 확장 프로그램",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
