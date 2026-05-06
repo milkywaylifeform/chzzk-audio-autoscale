@@ -49,6 +49,7 @@ npm install
 npm run build       # dist/ 생성
 npm run dev         # 핫 리로드 개발 모드
 npm run typecheck   # 타입 검사만
+npm run package     # 크롬 웹 스토어 제출용 releases/<name>-<version>.zip 생성
 ```
 
 크롬에 로드:
