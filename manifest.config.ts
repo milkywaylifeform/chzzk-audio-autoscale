@@ -13,9 +13,19 @@ export default defineManifest({
     service_worker: 'src/service-worker.ts',
     type: 'module',
   },
+  icons: {
+    16: 'icons/icon-16.png',
+    32: 'icons/icon-32.png',
+    64: 'icons/icon-64.png',
+    128: 'icons/icon-128.png',
+  },
   action: {
     default_title: 'Chzzk Audio Auto-Scale',
     default_popup: 'src/popup/popup.html',
+    default_icon: {
+      16: 'icons/icon-16.png',
+      32: 'icons/icon-32.png',
+    },
   },
   web_accessible_resources: [
     {
