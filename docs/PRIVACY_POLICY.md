@@ -74,4 +74,4 @@
 
 문의·신고는 GitHub Issues로 부탁드립니다:
 
-[저장소 URL을 여기에 입력]
+https://github.com/milkywaylifeform/chzzk-audio-autoscale/issues
