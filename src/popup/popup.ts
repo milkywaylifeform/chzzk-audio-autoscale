@@ -234,8 +234,10 @@ async function pollMeasurement(): Promise<void> {
   }
   $('meter-lufs').textContent = fmtNum(res.lufs, ' LUFS')
   $('meter-dbfs').textContent = fmtNum(res.dbfs, ' dBFS')
-  const gainSign = res.gainDb >= 0 ? '+' : ''
-  $('meter-gain').textContent = `${gainSign}${res.gainDb.toFixed(1)} dB`
+  // gainDb도 lufs·dbfs와 동일하게 유한성 가드 (null/NaN이면 toFixed에서 죽음).
+  $('meter-gain').textContent = Number.isFinite(res.gainDb)
+    ? `${res.gainDb >= 0 ? '+' : ''}${res.gainDb.toFixed(1)} dB`
+    : '—'
   const status = $('meter-status')
   if (res.gated) {
     status.textContent = 'GATED'
