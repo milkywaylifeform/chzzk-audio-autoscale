@@ -6,11 +6,6 @@
 
 ## [Unreleased]
 
-### 변경됨
-
-- **Phase 4b (1차)** — 활성 탭별 AGC 파라미터 분리. 팝업이 보는 탭이 캡처 중이면 그 탭만 조정("AGC 설정 (현재 탭)"), 비활성이면 기본값 조정 + 전체 탭 broadcast("AGC 설정 (기본값)")로 동작 분기. `SET_PARAMS`/`GET_PARAMS`에 옵셔널 `tabId` 추가
-- OFF→ON 토글 시 팝업이 보유한 파라미터를 새 그래프에 강제 적용 — `saveParams` ↔ 오프스크린 `paramsLoaded` 레이스로 옛 storage 값으로 초기화되던 문제 방지
-
 ### 후보 작업
 
 - **Phase 4b (2차)** — 완전 분리: 비활성 모드 편집의 전체 broadcast 제거, 탭별 파라미터 영속화 (현재는 마지막 편집값이 기본값으로 drift되는 소프트 분리)
@@ -25,6 +20,17 @@
 - DRM 보호 콘텐츠 캡처 불가 (Widevine 등) — 무음 스트림 반환됨
 - 동시 활성 4탭 한도 (CPU 부하 기준)
 - 엔드투엔드 ~20-50ms 추가 레이턴시
+
+## [0.2.0] - 2026-06-04
+
+### 추가됨
+
+- **목표 음량 슬라이더 범위 확장**: 하한 -30 → -40 LUFS. 방송 자체 음량보다 목표를 더 낮춰 시끄러운 방송도 감쇠 가능
+
+### 변경됨
+
+- **Phase 4b (1차)** — 활성 탭별 AGC 파라미터 분리. 팝업이 보는 탭이 캡처 중이면 그 탭만 조정("AGC 설정 (현재 탭)"), 비활성이면 기본값 조정 + 전체 탭 broadcast("AGC 설정 (기본값)")로 동작 분기. `SET_PARAMS`/`GET_PARAMS`에 옵셔널 `tabId` 추가
+- OFF→ON 토글 시 팝업이 보유한 파라미터를 새 그래프에 강제 적용 — `saveParams` ↔ 오프스크린 `paramsLoaded` 레이스로 옛 storage 값으로 초기화되던 문제 방지
 
 ## [0.1.0] - 2026-05-06
 
@@ -56,5 +62,6 @@
 - GitHub: https://github.com/milkywaylifeform/chzzk-audio-autoscale
 - 크롬 웹 스토어 출시 폼 입력값: [docs/SUBMISSION.md](./docs/SUBMISSION.md)
 
-[Unreleased]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/releases/tag/v0.1.0
