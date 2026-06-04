@@ -21,6 +21,12 @@
 - 동시 활성 4탭 한도 (CPU 부하 기준)
 - 엔드투엔드 ~20-50ms 추가 레이턴시
 
+## [0.2.2] - 2026-06-04
+
+### 수정됨
+
+- **실시간 미터 표시 중 팝업이 죽는 문제 수정**: 측정값(`lufs`·`dbfs`·`gainDb`)이 `null`일 때 `toFixed` 호출로 팝업 폴링이 중단되던 문제. 특히 전역 `isFinite(null)`이 `null`을 `0`으로 강제변환해 `true`를 반환하는 함정 때문에 가드를 통과했음 → `fmtNum`·`pct`·`meter-gain`을 모두 `Number.isFinite`로 교체
+
 ## [0.2.1] - 2026-06-04
 
 ### 수정됨
@@ -70,7 +76,8 @@
 - GitHub: https://github.com/milkywaylifeform/chzzk-audio-autoscale
 - 크롬 웹 스토어 출시 폼 입력값: [docs/SUBMISSION.md](./docs/SUBMISSION.md)
 
-[Unreleased]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/releases/tag/v0.1.0
