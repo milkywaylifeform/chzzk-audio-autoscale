@@ -7,7 +7,7 @@ export interface AgcParams {
 }
 
 export type CaptureMessage =
-  | { type: 'START_CAPTURE'; tabId: number; streamId: string }
+  | { type: 'START_CAPTURE'; tabId: number; streamId: string; params?: AgcParams }
   | { type: 'STOP_CAPTURE'; tabId: number }
   | { type: 'GET_ACTIVE_TABS' }
   | { type: 'TOGGLE_TAB'; tabId: number }

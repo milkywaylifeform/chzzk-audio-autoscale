@@ -4,6 +4,7 @@ import type {
   CaptureMessage,
   SimpleResponse,
 } from './messages'
+import { loadParams } from './storage'
 
 const OFFSCREEN_DOCUMENT_PATH = 'src/offscreen/offscreen.html'
 
@@ -98,7 +99,9 @@ async function startForTab(tabId: number): Promise<void> {
   await enforceLruLimit(tabId)
   const streamId = await getStreamId(tabId)
   await ensureOffscreenDocument()
-  const res = await send({ type: 'START_CAPTURE', tabId, streamId })
+  // 오프스크린은 chrome.storage 접근이 안 되므로 SW가 읽어 전달한다.
+  const params = await loadParams()
+  const res = await send({ type: 'START_CAPTURE', tabId, streamId, params })
   if (!res.ok) {
     await closeOffscreenIfEmpty()
     throw new Error(`오프스크린 캡처 시작 실패: ${res.error}`)

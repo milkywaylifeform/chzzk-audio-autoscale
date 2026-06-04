@@ -1,5 +1,6 @@
 import type {
   ActiveTabsResponse,
+  AgcParams,
   CaptureMessage,
   MeasurementResponse,
   ParamsResponse,
@@ -12,7 +13,6 @@ import {
   disposeAgcController,
   type AgcController,
 } from '../agc'
-import { loadParams } from '../storage'
 
 interface GraphNodes {
   stream: MediaStream
@@ -26,15 +26,10 @@ let audioContext: AudioContext | null = null
 let workletReady: Promise<void> | null = null
 const graphs = new Map<number, GraphNodes>()
 
-// 새 캡처에 적용될 기본 파라미터. SET_PARAMS로 갱신되고 새 그래프 생성 시 사용.
+// 새 캡처에 적용될 기본 파라미터. START_CAPTURE/SET_PARAMS로 갱신된다.
+// 오프스크린 문서는 chrome.storage에 접근할 수 없으므로 storage를 직접 읽지 않고,
+// 서비스워커가 START_CAPTURE 메시지에 실어 보낸 값으로 시드한다.
 let currentParams = { ...DEFAULT_AGC_PARAMS }
-
-// 오프스크린 문서 init 시 storage에서 사용자 설정값을 로드하여 currentParams 시드.
-// 첫 startCapture는 이 promise를 기다리도록 한다(없어도 안전하지만 일관성을 위해).
-const paramsLoaded: Promise<void> = loadParams().then((p) => {
-  currentParams = p
-  console.log('[sound-autoscale] 저장된 파라미터 로드됨')
-})
 
 const WORKLET_URL = chrome.runtime.getURL('loudness-processor.js')
 
@@ -52,8 +47,13 @@ async function ensureWorkletLoaded(ctx: AudioContext): Promise<void> {
   await workletReady
 }
 
-async function startCapture(tabId: number, streamId: string): Promise<void> {
-  await paramsLoaded
+async function startCapture(
+  tabId: number,
+  streamId: string,
+  params?: AgcParams,
+): Promise<void> {
+  // SW가 storage에서 읽어 전달한 파라미터로 시드. 없으면 마지막 알려진 값으로 폴백.
+  if (params) currentParams = { ...params }
   if (graphs.has(tabId)) {
     console.warn(`[sound-autoscale] tab ${tabId} 이미 캡처 중 — 재시작을 위해 기존 그래프 정리`)
     stopCapture(tabId)
@@ -118,7 +118,7 @@ chrome.runtime.onMessage.addListener(
     ) => void,
   ) => {
     if (msg.type === 'START_CAPTURE') {
-      startCapture(msg.tabId, msg.streamId)
+      startCapture(msg.tabId, msg.streamId, msg.params)
         .then(() => sendResponse({ ok: true }))
         .catch((e) => {
           console.error('[sound-autoscale] startCapture 실패:', e)
