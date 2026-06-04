@@ -21,6 +21,13 @@
 - 동시 활성 4탭 한도 (CPU 부하 기준)
 - 엔드투엔드 ~20-50ms 추가 레이턴시
 
+## [0.2.1] - 2026-06-04
+
+### 수정됨
+
+- **오프스크린 `loadParams` 에러 제거**: 오프스크린 문서는 `chrome.storage`에 접근할 수 없어 `Cannot read properties of undefined (reading 'local')` 에러가 발생하고, 저장된 파라미터가 자동 재캡처 경로에서 무시되던 문제 수정. 서비스워커가 파라미터를 읽어 `START_CAPTURE` 메시지로 전달하도록 변경
+- **손상된 저장 파라미터로 팝업이 죽는 문제 수정**: 저장값에 `null`·`NaN`이 섞이면 `formatValue`의 `toFixed`에서 팝업 초기화 전체가 중단되던 문제. `loadParams`가 각 키를 유한한 숫자일 때만 채택하도록 검증(자동 치유) + 팝업 측 방어 폴백 추가
+
 ## [0.2.0] - 2026-06-04
 
 ### 추가됨
@@ -63,6 +70,7 @@
 - GitHub: https://github.com/milkywaylifeform/chzzk-audio-autoscale
 - 크롬 웹 스토어 출시 폼 입력값: [docs/SUBMISSION.md](./docs/SUBMISSION.md)
 
-[Unreleased]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/milkywaylifeform/chzzk-audio-autoscale/releases/tag/v0.1.0
