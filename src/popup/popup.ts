@@ -67,7 +67,8 @@ function applyParamsToUi(p: AgcParams): void {
 }
 
 function pct(val: number, min: number, max: number): number {
-  if (!isFinite(val)) return 0
+  // 전역 isFinite는 null을 0으로 강제변환해 통과시키므로 Number.isFinite 사용.
+  if (!Number.isFinite(val)) return 0
   return Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100))
 }
 
@@ -205,7 +206,9 @@ function setupReset(): void {
 }
 
 function fmtNum(val: number, suffix: string): string {
-  return isFinite(val) ? `${val.toFixed(1)}${suffix}` : '—'
+  // 전역 isFinite(null)은 true(null→0 강제변환)라 null.toFixed로 죽는다.
+  // Number.isFinite는 강제변환 없이 null/NaN을 정확히 걸러낸다.
+  return Number.isFinite(val) ? `${val.toFixed(1)}${suffix}` : '—'
 }
 
 function setMeterEmpty(): void {
