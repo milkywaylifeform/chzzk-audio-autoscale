@@ -64,31 +64,81 @@
       <h2 id="settings-heading">AGC 설정</h2>
 
       <div class="slider-row">
-        <label for="targetLufs">목표 음량</label>
+        <span class="lbl">
+          <label for="targetLufs">목표 음량</label>
+          <span
+            class="help"
+            tabindex="0"
+            role="button"
+            aria-label="목표 음량 설명"
+            data-tip="맞출 기준 음량(LUFS). 방송이 이보다 작으면 키우고, 크면 줄입니다."
+            >?</span
+          >
+        </span>
         <input type="range" id="targetLufs" min="-40" max="-5" step="0.5" />
         <span id="targetLufs-val" class="val"></span>
       </div>
 
       <div class="slider-row">
-        <label for="silenceDbfs">Silence Gate</label>
+        <span class="lbl">
+          <label for="silenceDbfs">Silence Gate</label>
+          <span
+            class="help"
+            tabindex="0"
+            role="button"
+            aria-label="Silence Gate 설명"
+            data-tip="이보다 조용한 구간은 게인을 고정합니다. 휴지·배경음이 부풀려지는 펌핑을 막습니다."
+            >?</span
+          >
+        </span>
         <input type="range" id="silenceDbfs" min="-70" max="-25" step="1" />
         <span id="silenceDbfs-val" class="val"></span>
       </div>
 
       <div class="slider-row">
-        <label for="maxGainDb">최대 증폭</label>
+        <span class="lbl">
+          <label for="maxGainDb">최대 증폭</label>
+          <span
+            class="help"
+            tabindex="0"
+            role="button"
+            aria-label="최대 증폭 설명"
+            data-tip="키우거나 줄일 수 있는 최대 폭(±dB). 클수록 작은 소리도 크게 올립니다."
+            >?</span
+          >
+        </span>
         <input type="range" id="maxGainDb" min="6" max="24" step="1" />
         <span id="maxGainDb-val" class="val"></span>
       </div>
 
       <div class="slider-row">
-        <label for="attackS">Attack</label>
+        <span class="lbl">
+          <label for="attackS">Attack</label>
+          <span
+            class="help"
+            tabindex="0"
+            role="button"
+            aria-label="Attack 설명"
+            data-tip="소리가 갑자기 커질 때 게인을 낮추는 속도. 짧을수록 폭음을 빨리 억제합니다."
+            >?</span
+          >
+        </span>
         <input type="range" id="attackS" min="0.05" max="1" step="0.05" />
         <span id="attackS-val" class="val"></span>
       </div>
 
       <div class="slider-row">
-        <label for="releaseS">Release</label>
+        <span class="lbl">
+          <label for="releaseS">Release</label>
+          <span
+            class="help"
+            tabindex="0"
+            role="button"
+            aria-label="Release 설명"
+            data-tip="소리가 작아질 때 게인을 올리는 속도. 길수록 조용한 구간이 천천히 올라와 펌핑이 줄어듭니다."
+            >?</span
+          >
+        </span>
         <input type="range" id="releaseS" min="0.5" max="10" step="0.5" />
         <span id="releaseS-val" class="val"></span>
       </div>
