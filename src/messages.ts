@@ -11,8 +11,8 @@ export type CaptureMessage =
   | { type: 'STOP_CAPTURE'; tabId: number }
   | { type: 'GET_ACTIVE_TABS' }
   | { type: 'TOGGLE_TAB'; tabId: number }
-  | { type: 'SET_PARAMS'; params: Partial<AgcParams> }
-  | { type: 'GET_PARAMS' }
+  | { type: 'SET_PARAMS'; tabId?: number; params: Partial<AgcParams> }
+  | { type: 'GET_PARAMS'; tabId?: number }
   | { type: 'GET_MEASUREMENT'; tabId: number }
 
 export type SimpleResponse = { ok: true } | { ok: false; error: string }

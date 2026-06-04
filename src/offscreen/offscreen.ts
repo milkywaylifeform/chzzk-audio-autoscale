@@ -140,6 +140,20 @@ chrome.runtime.onMessage.addListener(
       return false
     }
     if (msg.type === 'SET_PARAMS') {
+      if (msg.tabId !== undefined) {
+        // 특정 탭만 갱신 — 다른 활성 탭에 영향 없음.
+        // 단, 다음에 시작될 새 그래프의 기본값으로 쓰이도록 default도 같이 동기화.
+        const g = graphs.get(msg.tabId)
+        if (g) {
+          g.agc.setParams(msg.params)
+          Object.assign(currentParams, msg.params)
+          sendResponse({ ok: true })
+        } else {
+          sendResponse({ ok: false, error: `tab ${msg.tabId} not active` })
+        }
+        return false
+      }
+      // tabId 미지정: 기본값 갱신 + 모든 활성 탭 broadcast (비활성 포그라운드 탭에서 팝업 연 경우)
       Object.assign(currentParams, msg.params)
       for (const g of graphs.values()) {
         g.agc.setParams(msg.params)
@@ -148,6 +162,13 @@ chrome.runtime.onMessage.addListener(
       return false
     }
     if (msg.type === 'GET_PARAMS') {
+      if (msg.tabId !== undefined) {
+        const g = graphs.get(msg.tabId)
+        if (g) {
+          sendResponse({ params: g.agc.getParams() })
+          return false
+        }
+      }
       sendResponse({ params: { ...currentParams } })
       return false
     }

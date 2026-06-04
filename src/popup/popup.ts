@@ -5,6 +5,7 @@ import type {
   AgcParams,
   CaptureMessage,
   MeasurementResponse,
+  ParamsResponse,
   SimpleResponse,
 } from '../messages'
 
@@ -28,7 +29,17 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T
 
 let currentTabId: number | null = null
+let isCurrentTabActive = false
 let currentParams: AgcParams = { ...DEFAULT_AGC_PARAMS }
+
+function targetTabId(): number | undefined {
+  return isCurrentTabActive && currentTabId !== null ? currentTabId : undefined
+}
+
+function updateSettingsHeading(): void {
+  const h = $('settings-heading')
+  h.textContent = isCurrentTabActive ? 'AGC 설정 (현재 탭)' : 'AGC 설정 (기본값)'
+}
 
 function formatValue(key: SliderKey, val: number): string {
   switch (key) {
@@ -101,20 +112,25 @@ async function refreshToggleState(): Promise<void> {
   if (currentTabId === null) {
     btn.textContent = '-'
     btn.disabled = true
+    isCurrentTabActive = false
+    updateSettingsHeading()
     return
   }
   btn.disabled = false
   const res = await sendCapture<ActiveTabsResponse>({ type: 'GET_ACTIVE_TABS' })
-  const isActive = res?.activeTabs?.some((t) => t.tabId === currentTabId) ?? false
-  btn.textContent = isActive ? 'ON' : 'OFF'
-  btn.classList.toggle('active', isActive)
+  isCurrentTabActive =
+    res?.activeTabs?.some((t) => t.tabId === currentTabId) ?? false
+  btn.textContent = isCurrentTabActive ? 'ON' : 'OFF'
+  btn.classList.toggle('active', isCurrentTabActive)
   btn.classList.remove('reactivate')
+  updateSettingsHeading()
 }
 
 async function onToggleClick(): Promise<void> {
   if (currentTabId === null) return
   const btn = $<HTMLButtonElement>('toggle-btn')
   btn.disabled = true
+  const wasActive = isCurrentTabActive
   const res = await sendCapture<SimpleResponse>({
     type: 'TOGGLE_TAB',
     tabId: currentTabId,
@@ -123,10 +139,32 @@ async function onToggleClick(): Promise<void> {
     console.error('[popup] 토글 실패:', res.error)
   }
   await refreshToggleState()
+  if (!wasActive && isCurrentTabActive) {
+    // OFF→ON: popup이 보유한 currentParams를 새 그래프에 강제 적용.
+    // (slider 편집의 saveParams ↔ 새 offscreen 모듈의 paramsLoaded 사이 race로
+    // 새 그래프가 옛 storage 값으로 초기화되는 문제를 방지.)
+    void sendCapture<SimpleResponse>({
+      type: 'SET_PARAMS',
+      tabId: currentTabId,
+      params: currentParams,
+    })
+    // popup 상태 = 사용자 의도이므로 슬라이더 UI는 그대로 유지.
+  } else if (wasActive && !isCurrentTabActive) {
+    // ON→OFF: 기본값 모드로 전환 — storage 기준으로 슬라이더 동기화.
+    await loadAndApplyParams()
+  }
 }
 
 async function loadAndApplyParams(): Promise<void> {
-  currentParams = await loadParams()
+  if (isCurrentTabActive && currentTabId !== null) {
+    const res = await sendCapture<ParamsResponse>({
+      type: 'GET_PARAMS',
+      tabId: currentTabId,
+    })
+    currentParams = res?.params ?? (await loadParams())
+  } else {
+    currentParams = await loadParams()
+  }
   applyParamsToUi(currentParams)
 }
 
@@ -138,11 +176,13 @@ function setupSliders(): void {
       const val = parseFloat(slider.value)
       valEl.textContent = formatValue(key, val)
       currentParams = { ...currentParams, [key]: val }
-      // 활성 그래프에 즉시 반영 + storage에 영속화 + 시각 마커 갱신
+      // 활성 탭이면 그 탭만, 아니면 기본값 + 모든 탭에 broadcast (offscreen에서 분기)
       void sendCapture<SimpleResponse>({
         type: 'SET_PARAMS',
+        tabId: targetTabId(),
         params: { [key]: val } as Partial<AgcParams>,
       })
+      // storage는 항상 갱신: 다음 탭 캡처 시 사용될 기본값
       void saveParams(currentParams)
       updateBars(lastState, currentParams)
     })
@@ -155,6 +195,7 @@ function setupReset(): void {
     applyParamsToUi(currentParams)
     void sendCapture<SimpleResponse>({
       type: 'SET_PARAMS',
+      tabId: targetTabId(),
       params: currentParams,
     })
     void saveParams(currentParams)
@@ -231,7 +272,9 @@ async function init(): Promise<void> {
     void onToggleClick()
   })
 
-  await Promise.all([refreshToggleState(), loadAndApplyParams()])
+  // refreshToggleState가 isCurrentTabActive를 설정 → loadAndApplyParams가 이를 사용하므로 순차 실행.
+  await refreshToggleState()
+  await loadAndApplyParams()
   startPolling()
 }
 
