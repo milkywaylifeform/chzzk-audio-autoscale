@@ -42,6 +42,8 @@ function updateSettingsHeading(): void {
 }
 
 function formatValue(key: SliderKey, val: number): string {
+  // 손상된 값(null·NaN 등)이 들어와도 팝업이 죽지 않도록 기본값으로 폴백.
+  if (!Number.isFinite(val)) val = DEFAULT_AGC_PARAMS[key]
   switch (key) {
     case 'targetLufs':
     case 'silenceDbfs':
